@@ -1,0 +1,7 @@
+The structure models are visualized by Jmol (https://jmol.sourceforge.net/),
+version 16.3.5 by 2024-11-12.  The atom index is displayed by `label %i;` to
+be issued on the program's own console.  For clarity of the presentation, the
+stick scheme was used instead of the default ball-and-stick.  The dimension
+of the .png exported was set to 500 by 400 pixels each.  To merge the relevant
+.png about cysteine into the composite, Inkscape (https://inkscape.org/)
+version 1.3.2 was used.

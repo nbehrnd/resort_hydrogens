@@ -1,0 +1,202 @@
+# name:    readme.org
+# author:  nbehrnd@yahoo.com
+# date:    [2024-12-04 Wed]
+# edit:
+# license: GPL, version 2.
+
+#+OPTIONS: toc:nil
+# pandoc readme.org -o readme.md -s --to gfm
+
+* documentation
+
+** motivation
+
+Crystallographic models of small molecule compounds tend to report
+hydrogens just after the non-hydrogen atoms the former bind to.  For
+one, this reflects a typical sequence of structure solution, where the
+identification of heavier (i.e. stronger scattering) atoms in the
+Fourier maps often is easier (and hence earlier completed), than of
+the lighter atoms. In addition, the initial position of hydrogens is
+based on templates in reference to the non-H atom (e.g., =HFIX=
+commands in ShelX[fn:shelx]) prior to structure refinement where
+(among other adjustments) atom coordinates are moved.  Aside from
+crystallography, this organization was described as potentially useful
+in the course of analyzing NMR spectra.[fn:obabel_discussion]
+
+Departing from a SMILES string, OpenBabel[fn:obabel] can propose a 3D
+model, for instance a .xyz file where hydrogen atoms complete
+valences.  Contrasting to a crystallographic model, atoms like C, N,
+O, P, S however appear ahead of the hydrogen they bind to:
+
+#+begin_src shell
+$ obabel -:"c1ccncc1" -h --gen3d -O pyridine.xyz
+$ cat pyridine.xyz
+11
+
+C          1.43303        0.05159        0.00100
+C          0.68800        1.22595        0.00151
+C         -0.69424        1.12564        0.00218
+N         -1.36237       -0.04853        0.00552
+C         -0.61197       -1.17189        0.00692
+C          0.77379       -1.17331        0.00332
+H          2.51852        0.09036       -0.00113
+H          1.17153        2.19630        0.00127
+H         -1.31976        2.01344        0.00006
+H         -1.17257       -2.10232        0.01145
+H          1.32543       -2.10632        0.00270
+#+end_src
+
+Note the sequence of atoms; nitrogen, fourth in sequence of the input
+atoms, equally is the forth non-hydrogen atom in the output.
+
+The purpose of this Fortran program is to rearrange the atom sequence
+in .xyz files to be "crystallography like". This is even more
+appealing OpenBabel retains this (new) sequence in a subsequent
+conversion of the .xyz file to MDL's =.mol= and =.sdf= format, or
+Tripos' =.mol2=.
+
+The result of the script's operation can be visualized with the
+example of cysteine:
+
+#+ATTR_HTML: :width 800px
+#+CAPTION: Model of cysteine prior (left) and after (right hand side) application of the Fortran code.
+[[file:examples/showcase_cysteine.png]]
+
+** suggested use
+
+The implementation is one Fortran file. The executable (here
+abbreviated as =exe=) can be compiled by gfortran,[fn:gfortran] for
+example in Linux Debian 13 by
+
+#+begin_src shell
+gfortran resort_hydrogens.f90 -o exe
+#+end_src
+
+The edited sequence of the atoms in an xyz file (provided for instance
+by OpenBabel) can be accessed from the CLI by a subsequent call in
+line of
+
+#+begin_src shell
+$ ./exe pyridine.xyz
+11
+
+C         1.43303        0.05159        0.00100
+H         2.51852        0.09036       -0.00113
+C         0.68800        1.22595        0.00151
+H         1.17153        2.19630        0.00127
+C        -0.69424        1.12564        0.00218
+H        -1.31976        2.01344        0.00006
+N        -1.36237       -0.04853        0.00552
+C        -0.61197       -1.17189        0.00692
+H        -1.17257       -2.10232        0.01145
+C         0.77379       -1.17331        0.00332
+H         1.32543       -2.10632        0.00270
+#+end_src
+
+From there, a redirect into a permanent record (=>=) is possible. Note
+the maximal length of the input file name is 200 characters. If
+used, up to 200 characters of the title line will be preserved, too.
+
+The executable provides an optional parameter =-s= to automatically
+write a permanent record:
+
+#+begin_src shell
+$ ./exe pyridine.xyz -s
+$ cat pyridine.xyz_resort.xyz
+11
+
+C         1.43303        0.05159        0.00100
+H         2.51852        0.09036       -0.00113
+C         0.68800        1.22595        0.00151
+H         1.17153        2.19630        0.00127
+C        -0.69424        1.12564        0.00218
+H        -1.31976        2.01344        0.00006
+N        -1.36237       -0.04853        0.00552
+C        -0.61197       -1.17189        0.00692
+H        -1.17257       -2.10232        0.01145
+C         0.77379       -1.17331        0.00332
+H         1.32543       -2.10632        0.00270
+#+end_src
+
+On a shell like Gnu Bash,[fn:tortoise] it equally is possible to use
+the executable inside a do-loop, or with GNU Parallel:[fn:parallel]
+
+#+begin_src sh
+ls *.xyz | while read i; do exe "$i" -s; done  # sequential run
+ls *.xyz | parallel -j4 "exe {} -s"  # use up to 4 processors
+#+end_src
+
+Folder =examples= include reference data about diethyl ether,
+pyridine, and cysteine prior and after running the executable.
+
+An optional conversion of the newly written =.xyz= file into the
+=.mol= file format (and others) is beyond the scope of this project.
+Applications like Avogadro2,[fn:avo2] OpenBabel,[fn:obabel] or
+RDKit[fn:rdkit] to mention a few provide this functionality.
+
+** details of implementation, known limitations
+
+The .xyz file is void of information about bond order and connectivity
+tables found in a .sdf file.  Nevertheless, the implementation
+presumes a distance of 1.7 Angstrom or less /alone/ to be a sufficient
+criterion to attribute a hydrogen to a non-hydrogen atom. Hence, atoms
+read from the input file are classified to belong to either set of
+hydrogens, or non-hydrogens.
+
+The arbitrary threshold seems to be suitable for a wide range of
+covalent bonds with hydrogen atoms: IUCr reports C-H single bonds of
+alkanes with about 1.1 Angstrom,[fn:it] while Wikipedia mentions
+160.9 pm (about 1.6 A) for the H-I bond in hydrogen iodide.[fn:wiki]
+
+On the other hand, the i) current classification of atoms in either
+hydrogen or non-hydrogen atoms and ii) subsequent check of one atom of
+one set with an atom of the other set is not suitable for structures
+with H-H bonds as in molecular hydrogen. A future revision of this
+implementation might close this gap.
+
+The upper limit of atoms per xyz file the executable can process is
+2147483647 (i.e., about 2.1E9).
+
+** License
+
+Norwid Behrnd, 2024 GPL v2
+
+** Footnotes
+
+[fn:shelx] Sheldrick, G. M. Crystal Structure Refinement with
+           SHELXL. /Acta Cryst. C/ *2015*, /71/ (1), 3--8.
+           [[https://doi.org/10.1107/S2053229614024218]].
+
+[fn:obabel_discussion] https://github.com/openbabel/openbabel/issues/2733
+
+[fn:obabel] [[https://github.com/openbabel/openbabel]]
+
+[fn:gfortran] for guidelines, see https://gcc.gnu.org/fortran/ and
+[[https://fortran-lang.org/learn/os_setup/install_gfortran]]
+
+[fn:avo2] see [[https://two.avogadro.cc]] and
+       [[https://github.com/OpenChemistry/avogadroapp]]
+
+[fn:rdkit] [[https://github.com/rdkit/rdkit]]
+
+[fn:parallel] [[https://www.gnu.org/software/parallel]]
+
+[fn:it] Allen, F. H.; Watson, D. G.; Brammer, L.; Orpen, A. G.;
+        Taylor, R. Typical Interatomic Distances: Organic
+        Compounds. In /International Tables for Crystallography/;
+        Prince, E., Ed.; Fuess, H., Hahn, Th., Wondratschek, H.,
+        Müller, U., Shmueli, U., Prince, E., Authier, A., Kopský, V.,
+        Litvin, D. B., Rossmann, M.  G., Arnold, E., Hall, S.,
+        McMahon, B., Series Eds.; International Union of
+        Crystallography: Chester, England, 2006; Vol. C, pp
+        790--811. [[https://doi.org/10.1107/97809553602060000621]] or
+        [[https://onlinelibrary.wiley.com/iucr/itc/Cb/ch9o5v0001/table9o5o1o1]]
+        For the purpose of this documentation, much of the precision
+        and additional detail this reference provides about C(sp3)-H
+        bonds in particular, and typical bond lengths in general was
+        removed.
+
+[fn:wiki] [[https://en.wikipedia.org/wiki/Hydrogen_iodide]]
+
+[fn:tortoise] Tortoise Git adds this functionality to the Windows
+operating system, too.  For details, see https://tortoisegit.org/.
