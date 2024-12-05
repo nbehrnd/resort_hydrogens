@@ -56,8 +56,22 @@ program resort
       ! read a file as sole argument
       new_unit = 10
       call get_command_argument(1, file_in)
-      open (new_unit, file=file_in, status="old", action="read", iostat=error)
-      if (error /= 0) stop "The input xyz file '" // trim(file_in) // "' is inaccessible."
+
+      if ((trim(file_in) == "-h") .or. (trim(file_in) == "--help")) then
+         print *, "Either read the xyz file as an argument, e.g."
+         print *, ""
+         print *, "    ./exe input.xyz [-s]"
+         print *, ""
+         print *, "with an optional save (`-s`) as `input.xyz_resort.xyz`, or"
+         print *, "pipe a structure via std to the executable (`exe` below) like"
+         print *, ""
+         print *, "    cat input.xyz | ./exe | obabel -ixyz -omol2"
+         stop
+
+      else
+         open (new_unit, file=file_in, status="old", action="read", iostat=error)
+         if (error /= 0) stop "The input xyz file '" // trim(file_in) // "' is inaccessible."
+      end if
    else if (command_argument_count() == 2) then
       ! read a file as an argument with an automatic save by -s
       new_unit = 10
