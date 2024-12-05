@@ -1,7 +1,7 @@
 ! name:    resort_hydrogens.f90
 ! author:  nbehrnd@yahoo.com
 ! date:    [2024-12-04 Wed]
-! edit:
+! edit:    [2024-12-05 Thu]
 ! license: GPL version 2.
 
 ! This Fortran program edits the sequence of atoms in xyz files such
@@ -24,14 +24,15 @@
 ! ```
 
 program resort
-   use iso_fortran_env, only: dp => real64, wp => int32
+   use iso_fortran_env, only: dp => real64, wp => int32, &
+      stdin => input_unit, stdout => output_unit, stderr => error_unit
    implicit none
 
    character(len=200) :: file_in, file_out
    character(len=3)   :: save_option
    logical :: save_file = .false.
 
-   integer(wp) :: i, j, k, error
+   integer(wp) :: i, j, k, new_unit, error
    integer(wp) :: number_of_atoms  ! limit of int32(huge): 2147483647
    character(len=200) :: title_line
    character(len=3) :: atom_label
@@ -49,35 +50,33 @@ program resort
 
    ! get in touch with the user
    if (command_argument_count() == 0) then
-      print *, "The mandatory input .xyz file was not indicated."
-      stop
+      ! data stream piped from the CLI
+      new_unit = stdin
    else if (command_argument_count() == 1) then
+      ! read a file as sole argument
+      new_unit = 10
       call get_command_argument(1, file_in)
-      file_out = trim(file_in)//"_resort.xyz"
+      open (new_unit, file=file_in, status="old", action="read", iostat=error)
+      if (error /= 0) stop "The input xyz file '" // trim(file_in) // "' is inaccessible."
    else if (command_argument_count() == 2) then
+      ! read a file as an argument with an automatic save by -s
+      new_unit = 10
       call get_command_argument(1, file_in)
       call get_command_argument(2, save_option)
+      open (new_unit, file=file_in, status="old", action="read", iostat=error)
+      if (error /= 0) stop "The input xyz file '" // trim(file_in) // "' is inaccessible."
       if (save_option == "-s") then
-         file_out = trim(file_in)//"_resort.xyz"
-         save_file = .true.
+          file_out = trim(file_in)//"_resort.xyz"
+          save_file = .true.
       end if
-   else
-      print *, "After compilation of the source to yield an executable (here `exe`)"
-      print *, "either run `exe input.xyz` for a report back to the CLI,"
-      print *, "or `exe input.xyz -s` to write file `input.xyz_resort.xyz` as new record."
-      stop
    end if
-
-   ! reading the data to process
-   open (10, file=file_in, status="old", action="read", iostat=error)
-   if (error /= 0) stop "The input xyz file '" // trim(file_in) // "' is inaccessible."
 
    do i = 1, 2
       if (i == 1) then
-         read (10, *, iostat=error) number_of_atoms
+         read (new_unit, *, iostat=error) number_of_atoms
          if (error /= 0) stop "Error reading number of atoms."
       else if (i == 2) then
-         read (10, "(A)", iostat=error) title_line
+         read (new_unit, "(A)", iostat=error) title_line
          if (error /= 0) stop "Error reading title line."
       end if
    end do
@@ -91,7 +90,7 @@ program resort
 
    i = 1
    do
-      read (10, *, iostat=error) atom_label, coordinates
+      read (new_unit, *, iostat=error) atom_label, coordinates
       if (error /= 0) exit  ! e.g., at the end of the input file read
 
       if (atom_label == "H") then
@@ -104,7 +103,7 @@ program resort
       i = i + 1
    end do
 
-   close (10)
+   close (new_unit)
 
    ! resort the hydrogens to follow suite their corresponding non-H atom
    !
